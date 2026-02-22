@@ -1,0 +1,146 @@
+<?php
+
+namespace PostalWarmup\Services;
+
+/**
+ * Service de chiffrement des données sensibles (Clés API)
+ */
+class Encryption {
+
+	/**
+	 * Méthode de chiffrement
+	 */
+	private const METHOD = 'AES-256-CBC';
+
+	/**
+	 * Récupère la clé de chiffrement
+	 * Utilise SECURE_AUTH_KEY si disponible, sinon une clé générée stockée en base.
+	 */
+	private static function get_key(): string {
+		if ( defined( 'SECURE_AUTH_KEY' ) ) {
+			return SECURE_AUTH_KEY;
+		}
+		
+		$key = get_option( 'pw_encryption_key' );
+		if ( empty( $key ) ) {
+			$key = wp_generate_password( 64, true, true );
+			update_option( 'pw_encryption_key', $key );
+		}
+		
+		return $key;
+	}
+
+	/**
+	 * Récupère l'ancienne clé (fallback pour les installations existantes)
+	 */
+	private static function get_legacy_key(): string {
+		return hash( 'sha256', get_site_url() );
+	}
+
+	/**
+	 * Chiffre une chaîne
+	 *
+	 * @param string $data La donnée à chiffrer.
+	 * @return string La donnée chiffrée en base64 (IV + Data).
+	 */
+	public static function encrypt( string $data ): string {
+		if ( empty( $data ) ) {
+			return '';
+		}
+
+		$key = hash( 'sha256', self::get_key() );
+		$iv_length = openssl_cipher_iv_length( self::METHOD );
+		$iv = openssl_random_pseudo_bytes( $iv_length );
+
+		$encrypted = openssl_encrypt( $data, self::METHOD, $key, 0, $iv );
+
+		// HMAC pour intégrité (Encrypt-then-MAC)
+		$hmac = hash_hmac( 'sha256', $iv . $encrypted, $key, true );
+
+		// On retourne l'IV, le texte chiffré et le HMAC, encodés en base64
+		return base64_encode( $iv . $hmac . $encrypted );
+	}
+
+	/**
+	 * Déchiffre une chaîne
+	 *
+	 * @param string $data La donnée chiffrée (base64).
+	 * @return string La donnée en clair, ou la donnée originale si échec.
+	 */
+	public static function decrypt( string $data ): string {
+		if ( empty( $data ) ) {
+			return '';
+		}
+
+		// Tenter de décoder le base64
+		$raw = base64_decode( $data, true );
+		if ( $raw === false ) {
+			// Ce n'est pas du base64 valide, c'est peut-être une ancienne clé non chiffrée
+			return $data;
+		}
+
+		$key = hash( 'sha256', self::get_key() );
+		$iv_length = openssl_cipher_iv_length( self::METHOD );
+		$hmac_length = 32; // sha256 output length
+
+		// Vérifier que la longueur est suffisante pour contenir l'IV
+		if ( strlen( $raw ) < $iv_length ) {
+			return $data;
+		}
+
+		// Détection format: Avec HMAC ou Sans HMAC (Legacy)
+		// Format V2: IV (16) + HMAC (32) + Ciphertext
+		// Format V1: IV (16) + Ciphertext
+		
+		// Essai de déchiffrement V2 (avec HMAC)
+		if ( strlen( $raw ) >= $iv_length + $hmac_length ) {
+			$iv = substr( $raw, 0, $iv_length );
+			$hmac = substr( $raw, $iv_length, $hmac_length );
+			$ciphertext = substr( $raw, $iv_length + $hmac_length );
+			
+			// Vérification HMAC
+			$calced_hmac = hash_hmac( 'sha256', $iv . $ciphertext, $key, true );
+			
+			if ( hash_equals( $hmac, $calced_hmac ) ) {
+				$decrypted = openssl_decrypt( $ciphertext, self::METHOD, $key, 0, $iv );
+				if ( $decrypted !== false ) {
+					return $decrypted;
+				}
+			}
+		}
+
+		// Fallback V1 (Sans HMAC) ou si V2 a échoué (ex: HMAC invalide car c'était du V1)
+		
+		$iv = substr( $raw, 0, $iv_length );
+		$ciphertext = substr( $raw, $iv_length );
+
+		$decrypted = openssl_decrypt( $ciphertext, self::METHOD, $key, 0, $iv );
+
+		// Fallback : Essayer avec l'ancienne clé si SECURE_AUTH_KEY n'est pas définie
+		// (car cela signifie qu'on est passé de la clé site_url à la clé générée)
+		if ( $decrypted === false && ! defined( 'SECURE_AUTH_KEY' ) ) {
+			$legacy_key = hash( 'sha256', self::get_legacy_key() );
+			$decrypted = openssl_decrypt( $ciphertext, self::METHOD, $legacy_key, 0, $iv );
+		}
+
+		// Si le déchiffrement échoue encore, on retourne la donnée originale
+		if ( $decrypted === false ) {
+			return $data;
+		}
+
+		return $decrypted;
+	}
+
+	/**
+	 * Vérifie si une chaîne semble chiffrée (heuristique simple)
+	 */
+	public static function is_encrypted( string $data ): bool {
+		$raw = base64_decode( $data, true );
+		if ( $raw === false ) {
+			return false;
+		}
+		// Longueur minimum (IV + au moins un bloc)
+		$iv_length = openssl_cipher_iv_length( self::METHOD );
+		return strlen( $raw ) > $iv_length;
+	}
+}

@@ -1,0 +1,30 @@
+{
+    "subject": [
+        "dfssdgfdsgf"
+    ],
+    "text": [
+        "dsqdqqsddsqdsq"
+    ],
+    "html": [
+        "[warmup_mailto template=\"fr\" class=\"btn\"][\/warmup_mailto]",
+        "[warmup_mailto template=\"fr\" class=\"btn\"][\/warmup_mailto]"
+    ],
+    "from_name": [
+        "sdgdfgsdg"
+    ],
+    "mailto_subject": [
+        "Je veut Fancy",
+        "2"
+    ],
+    "mailto_body": [
+        "Bonjour, je souhaite telechargere fancy, veuillez me l envoyer en piece\r\n Les variables {{email}}, {{site_url}}, etc. sont remplacées par des données de test.",
+        "4\r\n Les variables {{email}}, {{site_url}}, etc. sont remplacées par des données de test."
+    ],
+    "mailto_from_name": [],
+    "default_label": "hongkong",
+    "id": "2",
+    "name": "hongkong",
+    "folder_id": "1",
+    "status": "active",
+    "timezone": "Asia\/Hong_Kong"
+}
