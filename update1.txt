@@ -1,0 +1,379 @@
+Repository: layen67/Warmup_pro_V3.4
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## CE QUE CE PLUGIN DOIT FAIRE AU FINAL
+
+C'est un plugin WordPress de "warmup" d'adresses IP et domaines 
+email via Postal (serveur mail open source).
+
+L'objectif est de construire une RÉPUTATION EMAIL SOLIDE sur un 
+nouveau domaine/IP en générant de vrais échanges email humains.
+
+Le flux complet voulu est le suivant :
+
+1. Des boutons mailto sont affichés sur un site WordPress
+   Exemple : "Contactez notre support"
+   Ces boutons pointent vers des adresses du serveur Postal
+   Exemple : support@warmup.monsite.com
+
+2. De vraies personnes cliquent sur ces boutons et envoient 
+   un email depuis leur vraie boîte Gmail/Outlook/Yahoo
+
+3. Postal reçoit cet email entrant et envoie un webhook 
+   au plugin WordPress
+
+4. Le plugin répond automatiquement via un template choisi
+   selon le préfixe de l'adresse (support → template "support")
+
+5. SI la personne répond à cette réponse automatique :
+   → Le plugin détecte la vraie réponse humaine via in_reply_to
+   → Il répond avec le template suivant de la chaîne (support_reply2)
+   → Si elle répond encore → support_reply3
+   → Maximum configurable d'échanges puis stop
+
+6. Chaque échange construit de la réputation :
+   Gmail/Outlook voit une vraie conversation → 
+   l'IP et le domaine deviennent de plus en plus fiables
+
+7. Tout est géré depuis le dashboard WordPress :
+   → Créer/modifier les chaînes de templates
+   → Voir les threads en cours
+   → Configurer les délais, les limites, les fallbacks
+   → Suivre les stats (taux de réponse, threads actifs, etc.)
+
+L'admin ne touche JAMAIS au code.
+Tout se configure depuis l'interface WordPress du plugin.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## MISSION EN DEUX PHASES
+
+### PHASE 1 — AUDIT DE COMPATIBILITÉ (faire avant tout code)
+
+Lire TOUS les fichiers du repo dans cet ordre :
+- postal-warmup.php
+- src/Core/Plugin.php
+- src/Core/Activator.php
+- src/API/WebhookHandler.php
+- src/API/Sender.php
+- src/API/Client.php
+- src/Services/QueueManager.php
+- src/Services/WarmupEngine.php
+- src/Services/StrategyEngine.php
+- src/Services/LoadBalancer.php
+- src/Services/Logger.php
+- src/Services/HealthScoreCalculator.php
+- src/Services/WarmupAdvisor.php
+- src/Services/EmailNotifications.php
+- src/Services/ISPDetector.php
+- src/Services/WebhookDispatcher.php
+- src/Services/DomScanService.php
+- src/Admin/Admin.php
+- src/Admin/AjaxHandler.php
+- src/Admin/Settings.php
+- src/Admin/TemplateManager.php
+- src/Admin/ISPManager.php
+- src/Admin/StrategyManager.php
+- src/Admin/WarmupSettings.php
+- src/Models/Database.php
+- src/Models/Stats.php
+- src/Models/Strategy.php
+- src/Core/TemplateEngine.php
+
+Pour chaque fichier, détecter :
+
+A) INCOMPATIBILITÉS AVEC LES ÉVÉNEMENTS POSTAL RÉELS
+   Seuls événements valides dans Postal :
+   MessageSent, MessageDelayed, MessageDeliveryFailed,
+   MessageHeld, MessageBounced, MessageLinkClicked,
+   MessageLoaded, DomainDNSError
+   → Signaler tout fichier qui référence MessageDelivered
+     ou tout autre événement inexistant
+
+B) MAUVAIS ACCÈS AU PAYLOAD POSTAL
+   Structure exacte du payload entrant Postal :
+   {
+     "id", "rcpt_to", "mail_from", "token", "subject",
+     "message_id", "timestamp", "size", "spam_status",
+     "bounce", "received_with_ssl", "to", "cc", "from",
+     "date", "in_reply_to", "references", "plain_body",
+     "html_body", "auto_submitted", "attachment_quantity",
+     "attachments"
+   }
+   → Signaler tout $payload['headers']['...'] qui devrait
+     être $payload['in_reply_to'] directement
+   → Signaler tout champ accédé qui n'existe pas
+
+C) DÉPENDANCES ENTRE FICHIERS
+   Vérifier que chaque appel de méthode entre classes
+   correspond à la signature réelle définie
+   → Signaler tout paramètre incorrect ou retour mal utilisé
+
+D) COHÉRENCE DES DONNÉES EN BASE
+   Vérifier que les event_type dans postal_stats_history
+   sont cohérents partout (ex: 'delivered' vs 'sent')
+
+E) PROBLÈMES QUI VONT CASSER AVEC LES NOUVEAUX THREADS
+   Identifier tout ce qui entre en conflit avec :
+   - handle_human_reply()
+   - Les nouvelles options pw_thread_*
+   - Le nouveau widget dashboard threads
+   - Le nouvel onglet Chaînes dans Templates
+
+Produire un rapport AUDIT.md :
+- Fichier concerné + ligne approximative
+- Problème exact
+- Correction nécessaire
+- Sévérité : Bloquant / Moyen / Faible
+
+NE PAS modifier de fichiers pendant cette phase.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+### PHASE 2 — IMPLÉMENTATION + CORRECTIONS
+
+Appliquer dans cet ordre strict :
+
+ÉTAPE 1 — Corriger tous les bugs détectés en Phase 1
+Chaque correction chirurgicale dans un commit séparé.
+
+ÉTAPE 2 — Corrections critiques WebhookHandler.php
+
+2a. Remplacer $payload['headers']['In-Reply-To']
+    par $payload['in_reply_to'] partout
+
+2b. Renommer MessageDelivered en MessageSent partout
+
+2c. Ajouter EN DÉBUT de handle_incoming_message() :
+
+    // Ignorer les bounces
+    if ($payload['bounce'] === true) {
+        $this->logger->info('incoming_bounce_ignored', [
+            'from' => $payload['mail_from']
+        ]);
+        return;
+    }
+    // Ignorer les réponses automatiques
+    if (!empty($payload['auto_submitted'])) {
+        $this->logger->info('incoming_auto_reply_ignored', [
+            'from'           => $payload['mail_from'],
+            'auto_submitted' => $payload['auto_submitted']
+        ]);
+        return;
+    }
+
+ÉTAPE 3 — Nouvelles options dans Activator.php
+
+  pw_thread_enabled              → bool,   false
+  pw_thread_max_exchanges        → int,    3
+  pw_thread_delay_min            → int,    300
+  pw_thread_delay_max            → int,    1800
+  pw_thread_template_suffix      → string, '_reply'
+  pw_thread_tag_prefix           → string, 'warmup-reply'
+  pw_thread_fallback_template_id → int,    0
+
+ÉTAPE 4 — Onglet "Threads" dans Settings.php
+Même style que les onglets existants.
+
+SECTION Activation :
+  Toggle pw_thread_enabled
+  Info : "Répond automatiquement quand un destinataire
+  répond à votre email de warmup. Génère de vrais threads
+  qui renforcent la réputation de votre domaine."
+
+SECTION Comportement :
+  Nombre pw_thread_max_exchanges (min 1, max 10)
+  Nombre pw_thread_delay_min en minutes
+  Nombre pw_thread_delay_max en minutes
+  Validation : delay_min < delay_max
+
+SECTION Templates :
+  Texte pw_thread_template_suffix
+  Info : "Avec '_reply', créez : support_reply2, support_reply3"
+  Dropdown pw_thread_fallback_template_id
+  Rempli depuis TemplateManager (templates actifs)
+  Option 0 : "Ne pas répondre si template manquant"
+
+SECTION Postal :
+  Texte pw_thread_tag_prefix
+  Info : "Tag visible dans votre dashboard Postal"
+
+ÉTAPE 5 — handle_human_reply dans WebhookHandler.php
+
+Ajouter EN FIN de handle_incoming_message() :
+
+  try {
+      if (!get_option('pw_thread_enabled', false)) return;
+      $in_reply_to = $payload['in_reply_to'] ?? null;
+      if (!empty($in_reply_to)) {
+          $this->handle_human_reply($payload, $in_reply_to);
+      }
+  } catch (\Throwable $e) {
+      $this->logger->error('handle_human_reply_failed', [
+          'error' => $e->getMessage()
+      ]);
+  }
+
+Méthode privée handle_human_reply() :
+
+  private function handle_human_reply(
+      array $payload,
+      string $in_reply_to
+  ): void {
+
+      // Toutes les valeurs depuis get_option() — zéro hardcodé
+      $max_exchanges   = (int)    get_option('pw_thread_max_exchanges', 3);
+      $delay_min       = (int)    get_option('pw_thread_delay_min', 300);
+      $delay_max       = (int)    get_option('pw_thread_delay_max', 1800);
+      $suffix          = (string) get_option('pw_thread_template_suffix', '_reply');
+      $tag_prefix      = (string) get_option('pw_thread_tag_prefix', 'warmup-reply');
+      $fallback_tpl_id = (int)    get_option('pw_thread_fallback_template_id', 0);
+
+      // Vérification auto_submitted
+      if (!empty($payload['auto_submitted'])) return;
+
+      // 1. Chercher message parent dans postal_stats_history
+      //    → Si non trouvé : return silencieux
+
+      // 2. Récupérer template original depuis contexte JSON
+      //    du message parent
+      //    → Si non récupérable : logger + return
+
+      // 3. Compter échanges du thread dans postal_stats_history
+      //    → Si >= $max_exchanges :
+      //       logger thread_max_reached + return
+
+      // 4. Numéro échange suivant
+      $exchange_number = $existing_count + 1;
+
+      // 5. Chercher template via TemplateManager existant
+      $template_name = $original_template . $suffix . $exchange_number;
+      $template = $this->template_manager->get_by_name($template_name);
+
+      // 6. Fallback si manquant
+      if (!$template && $fallback_tpl_id > 0) {
+          $template = $this->template_manager->get_by_id($fallback_tpl_id);
+      }
+      if (!$template) {
+          $this->logger->info('thread_no_template', [
+              'looked_for' => $template_name
+          ]);
+          return;
+      }
+
+      // 7. Délai aléatoire humain
+      $delay = rand($delay_min, $delay_max);
+
+      // 8. QueueManager::add() format IDENTIQUE à l'existant
+      //    Seuls changements :
+      //    - template_id = celui trouvé ci-dessus
+      //    - scheduled_at = NOW() + $delay
+      //    - tag = $tag_prefix.'-'.$exchange_number
+
+      // 9. Logger
+      $this->logger->info('human_reply_queued', [
+          'exchange'  => $exchange_number,
+          'template'  => $template_name,
+          'delay_sec' => $delay,
+          'from'      => $payload['mail_from'],
+      ]);
+  }
+
+ÉTAPE 6 — Onglet "Chaînes" dans Admin.php
+Dans la page Templates, ajouter un onglet "Chaînes"
+au même style que les onglets existants.
+
+Logique de détection automatique :
+1. Templates principaux = nom sans pw_thread_template_suffix
+2. Pour chaque principal vérifier :
+   {nom}{suffix}2 ... {nom}{suffix}{max_exchanges}
+
+Affichage en rangée de cases reliées par flèches → :
+  Case existante : nom + statut + [Modifier]
+  Case manquante : ⚠️ + [Créer] avec nom pré-rempli verrouillé
+
+Bouton [+ Nouvelle chaîne] → modal :
+  - Champ nom (sans espaces ni suffixe)
+  - Aperçu des noms qui seront créés
+  - Options : vides / principal seul / dupliquer depuis existante
+  - Action AJAX → AjaxHandler → TemplateManager::create()
+
+Notice si incomplète ET pw_thread_enabled = true :
+"⚠️ X template(s) manquant(s). Template de repli utilisé."
+
+ÉTAPE 7 — Widget "Threads" dans le dashboard Admin.php
+Au même format que les widgets existants.
+
+Nouvelles méthodes dans Stats.php :
+  get_thread_stats(int $server_id): array
+    → réponses reçues aujourd'hui, actifs, complétés,
+      taux de réponse
+  get_recent_threads(int $limit = 5): array
+    → 5 derniers threads avec email, template, 
+      échange X/max, statut
+
+Toutes les requêtes via Stats.php, jamais $wpdb dans Admin.php.
+
+ÉTAPE 8 — Actions AJAX dans AjaxHandler.php
+Chacune avec nonce WordPress :
+
+  pw_create_chain_template
+    → crée template via TemplateManager avec nom pré-rempli
+
+  pw_copy_template
+    → copie sujet + corps d'un template vers un autre
+
+  pw_duplicate_chain
+    → duplique toute une chaîne avec nouveau préfixe
+
+  pw_stop_thread
+    → marque thread comme stopped dans postal_stats_history
+
+  pw_send_thread_now
+    → scheduled_at = NOW() sur la tâche en attente
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## CONTRAINTES ABSOLUES
+
+- handle_incoming_message() : ZERO modification au corps,
+  ajout uniquement en début (gardes) et fin (thread)
+- Zéro valeur hardcodée, tout via get_option()
+- TemplateManager et TemplateEngine existants pour tout
+- QueueManager::add() format identique à l'existant
+- Pas de nouvelle table
+- Ne pas modifier QueueManager, Sender, LoadBalancer,
+  TemplateEngine, TemplateManager
+- pw_thread_enabled = false par défaut (opt-in explicite)
+- CSS cohérent avec le style admin existant
+- Requêtes DB via Stats.php ou Database.php uniquement
+- Chaque nouveau bloc dans try/catch indépendant
+- Si pw_thread_enabled = false : masquer tous les 
+  composants visuels threads proprement
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+## LIVRABLES ATTENDUS
+
+Phase 1 :
+- AUDIT.md (tous les problèmes trouvés classés par sévérité)
+
+Phase 2 :
+- WebhookHandler.php (corrections + threads)
+- Activator.php (nouvelles options)
+- Settings.php (onglet Threads)
+- Admin.php (onglet Chaînes + widget dashboard)
+- AjaxHandler.php (5 nouvelles actions)
+- Stats.php (get_thread_stats + get_recent_threads)
+- Script SQL si migration event_type nécessaire
+- Tests PHPUnit handle_human_reply() :
+  → bounce = true → return
+  → auto_submitted rempli → return
+  → in_reply_to absent → return
+  → message_id non trouvé → return
+  → max exchanges atteint → return + log
+  → template trouvé → queue ajoutée
+  → template manquant + fallback → fallback utilisé
+  → template manquant sans fallback → return + log
+  → QueueManager::add() échoue → log sans crash
