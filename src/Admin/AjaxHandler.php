@@ -74,8 +74,70 @@ class AjaxHandler {
     public function ajax_pw_duplicate_chain() {
         check_ajax_referer( 'pw_admin_nonce', 'nonce' );
         $this->check_permission();
-        // Not implemented fully yet as complex logic required to clone multiple templates.
-        wp_send_json_error(['message' => 'Non implémenté']);
+
+        $root_name = sanitize_text_field( $_POST['root_name'] ?? '' );
+        $new_root = sanitize_text_field( $_POST['new_root'] ?? '' );
+
+        if ( empty($root_name) || empty($new_root) ) {
+            wp_send_json_error(['message' => 'Noms manquants']);
+        }
+
+        if ( $root_name === $new_root ) {
+            wp_send_json_error(['message' => 'Le nouveau nom doit être différent']);
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'postal_templates';
+
+        // Find all templates in chain
+        // Logic: root, root_reply1, root_reply2... (assuming suffix _reply, configurable?)
+        // Better: Use LIKE logic to find all starting with root_name
+        // But risk of matching "support_pro" when duplicating "support".
+        // Use regex or strict check via PHP.
+        // We rely on standard suffix from settings.
+
+        $suffix = Settings::get('thread_template_suffix', '_reply');
+
+        // Get all templates that match pattern
+        $templates = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM $table WHERE name = %s OR name LIKE %s",
+            $root_name,
+            $wpdb->esc_like($root_name . $suffix) . '%'
+        ), ARRAY_A );
+
+        if ( empty($templates) ) {
+            wp_send_json_error(['message' => 'Aucun template trouvé pour cette chaîne']);
+        }
+
+        $count = 0;
+        foreach ( $templates as $tpl ) {
+            // Calculate new name
+            if ( $tpl['name'] === $root_name ) {
+                $new_name_tpl = $new_root;
+            } else {
+                // Replace prefix
+                $new_name_tpl = str_replace($root_name . $suffix, $new_root . $suffix, $tpl['name']);
+            }
+
+            // Check existence
+            $exists = $wpdb->get_var( $wpdb->prepare("SELECT id FROM $table WHERE name = %s", $new_name_tpl) );
+            if ( $exists ) continue; // Skip existing
+
+            // Duplicate
+            $data = [
+                'name' => $new_name_tpl,
+                'data' => $tpl['data'],
+                'folder_id' => $tpl['folder_id'],
+                'status' => 'draft', // Set duplicate to draft
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ];
+
+            $wpdb->insert($table, $data);
+            $count++;
+        }
+
+        wp_send_json_success(['message' => "$count templates dupliqués vers $new_root"]);
     }
 
     public function ajax_pw_stop_thread() {

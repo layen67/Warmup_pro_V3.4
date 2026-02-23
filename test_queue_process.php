@@ -41,6 +41,7 @@ namespace { // Global namespace for functions and main script
     function __($s) { return $s; }
     function do_action($h) {}
     function apply_filters($h, $v) { return $v; }
+    function sanitize_text_field($s) { return $s; }
 
     // Mock Database
     class MockDB {
@@ -125,6 +126,14 @@ namespace PostalWarmup\Admin {
             if ($key === 'queue_batch_size') return 5;
             if ($key === 'schedule_start_hour') return 0;
             if ($key === 'schedule_end_hour') return 24;
+            if ($key === 'api_timeout') return 15;
+            if ($key === 'default_from_email') return '';
+            if ($key === 'default_from_name') return '';
+            if ($key === 'custom_headers') return '';
+            if ($key === 'max_retries') return 3;
+            if ($key === 'warmup_start') return 10;
+            if ($key === 'warmup_increase_percent') return 20;
+            if ($key === 'db_optimize_on_purge') return false;
             return $default;
         }
     }
