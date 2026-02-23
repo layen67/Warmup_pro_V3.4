@@ -190,16 +190,9 @@ class WarmupEngine {
 		// Ici on pourrait utiliser une stratégie spécifique par ISP (table postal_isps)
 		// Pour l'instant on utilise les settings globaux ou ceux du serveur
 		
-		$settings = get_option('pw_warmup_settings', []);
-		$start_vol = isset($settings['warmup_start']) ? (int)$settings['warmup_start'] : 10;
-		// Use 'growth_rate' from settings or default 30%? 
-		// Settings class defines 'warmup_increase_percent' in defaults but 'growth_rate' in previous code?
-		// Checking Settings.php defaults: 'warmup_increase_percent' => 20
-		// Checking Stats.php logic: uses 'growth_rate'.
-		// Need to unify. Let's check Settings.php again.
-		
-		$growth = isset($settings['warmup_increase_percent']) ? (int)$settings['warmup_increase_percent'] : 20;
-		if (isset($settings['growth_rate'])) $growth = (int)$settings['growth_rate']; // Legacy override
+        // FIX: Use Settings::get()
+		$start_vol = (int) Settings::get('warmup_start', 10);
+		$growth = (int) Settings::get('warmup_increase_percent', 20);
 		
 		// Formula: Start * (1 + Growth/100)^(Day-1)
 		if ($day < 1) $day = 1;

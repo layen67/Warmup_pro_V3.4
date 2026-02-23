@@ -4,10 +4,9 @@ namespace PostalWarmup\Models;
 
 use PostalWarmup\Models\Database;
 use PostalWarmup\Services\WarmupEngine;
+use PostalWarmup\Admin\Settings;
 
 class Stats {
-
-    // ... (Existing methods kept intact)
 
 	/**
 	 * Récupère le nombre d'emails envoyés aujourd'hui par un serveur.
@@ -24,12 +23,6 @@ class Stats {
 			$date 
 		) );
 	}
-
-    // ... (skipping unchanged methods for brevity, assuming full content is preserved in real file write)
-    // Wait, write_file overwrites. I must include ALL content.
-    // I will read the file first to ensure I have everything, then append new methods.
-    // Actually I already read it in Phase 1.
-    // I will paste the full file content + new methods.
 
 	public static function get_server_hourly_usage( int $server_id ) {
 		global $wpdb;
@@ -128,13 +121,13 @@ class Stats {
 		$limit = (int) $server['daily_limit'];
 		
 		if ( $limit <= 0 ) {
-			$settings = get_option('pw_warmup_settings', []);
-			
-			$start_vol = isset($settings['warmup_start']) ? (int)$settings['warmup_start'] : 10;
-			if (isset($settings['start_volume'])) $start_vol = (int)$settings['start_volume'];
+            // FIX: Use Settings::get() instead of raw option
+			$start_vol = (int) Settings::get('warmup_start', 10);
+            // Handle legacy override if any? No, Settings::get handles defaults.
+            // But legacy check inside Settings::sanitize handles format.
+            // Just use Settings::get.
 
-			$growth = isset($settings['warmup_increase_percent']) ? (int)$settings['warmup_increase_percent'] : 20;
-			if (isset($settings['growth_rate'])) $growth = (int)$settings['growth_rate'];
+			$growth = (int) Settings::get('warmup_increase_percent', 20);
 			
 			$day = isset($server['warmup_day']) ? (int)$server['warmup_day'] : 1;
 			if ($day < 1) $day = 1;
@@ -374,7 +367,7 @@ class Stats {
 	}
 	
 	public static function cleanup_old_stats() {
-		$days = get_option( 'pw_stats_retention_days', 90 );
+		$days = Settings::get( 'stats_retention_days', 90 );
 		global $wpdb;
 		$table = $wpdb->prefix . 'postal_stats';
 		$date = date( 'Y-m-d', strtotime( "-$days days" ) );
@@ -775,14 +768,15 @@ class Stats {
     public static function cleanup_stats_history() {
         global $wpdb;
         $table = $wpdb->prefix . 'postal_stats_history';
-        $days = (int) \PostalWarmup\Admin\Settings::get('stats_retention_days', 90);
+        // Use Settings::get for retention
+        $days = (int) Settings::get('stats_retention_days', 90);
 
         $date = date('Y-m-d H:i:s', strtotime("-$days days"));
 
         $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE timestamp < %s", $date));
 
         // Also optimize if enabled
-        if (\PostalWarmup\Admin\Settings::get('db_optimize_on_purge', true)) {
+        if (Settings::get('db_optimize_on_purge', true)) {
             $wpdb->query("OPTIMIZE TABLE $table");
         }
     }
