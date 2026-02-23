@@ -35,7 +35,12 @@
             }, (response) => {
                 if (response.success) {
                     this.renderChains(response.data.templates);
+                } else {
+                    this.container.html('<div class="notice notice-error"><p>Erreur lors du chargement : ' + (response.data.message || 'Inconnue') + '</p></div>');
                 }
+            }).fail((xhr, status, error) => {
+                console.error('Chains Load Error:', error);
+                this.container.html('<div class="notice notice-error"><p>Erreur réseau lors du chargement des chaînes.</p></div>');
             });
         },
 
@@ -73,7 +78,7 @@
         },
 
         buildChainHTML: function(root, items) {
-            const maxDepth = 3; // From settings
+            const maxDepth = parseInt(pwAdmin.thread_max) || 3;
             let steps = '';
 
             for (let i = 0; i <= maxDepth; i++) {

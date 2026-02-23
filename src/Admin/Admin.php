@@ -155,6 +155,7 @@ class Admin {
 			],
             'threads_enabled' => get_option('pw_thread_enabled', false),
             'thread_suffix'   => get_option('pw_thread_template_suffix', '_reply'),
+            'thread_max'      => (int) get_option('pw_thread_max_exchanges', 3),
 		]);
 	}
 
