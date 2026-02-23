@@ -168,7 +168,7 @@ if (!$table_exists): ?>
     </h2>
      
     <!-- Barre de recherche et filtres (Tab List only) -->
-    <div class="pw-toolbar pw-tab-content" id="pw-list-toolbar">
+    <div class="pw-toolbar pw-tab-content active" id="pw-list-toolbar">
         <div class="pw-search-container"> 
             <span class="dashicons dashicons-search"></span> 
             <input  
@@ -205,7 +205,7 @@ if (!$table_exists): ?>
     </div> 
      
     <!-- Layout 3 colonnes --> 
-    <div class="pw-main-layout pw-tab-content" id="pw-list-tab">
+    <div class="pw-main-layout pw-tab-content active" id="pw-list-tab">
          
         <!-- Sidebar gauche (Dossiers + Tags) --> 
         <aside class="pw-sidebar"> 
@@ -595,14 +595,20 @@ jQuery(document).ready(function($) {
         $('.pw-tab-link').removeClass('nav-tab-active');
         $(this).addClass('nav-tab-active');
 
-        $('.pw-tab-content').hide();
+        $('.pw-tab-content').removeClass('active').hide(); // Hide all
+
         var tab = $(this).data('tab');
         if (tab === 'list') {
-            $('#pw-list-tab').show();
-            $('#pw-list-toolbar').show();
+            $('#pw-list-tab').addClass('active').show();
+            $('#pw-list-toolbar').addClass('active').show();
         } else if (tab === 'chains') {
-            $('#pw-chains-tab').show();
+            $('#pw-chains-tab').addClass('active').show();
         }
     });
+
+    // Ensure correct state on load if not set by PHP
+    if (!$('.pw-tab-content.active').length) {
+        $('.pw-tab-link[data-tab="list"]').click();
+    }
 });
 </script>
