@@ -451,5 +451,9 @@ class Activator {
 		if ( ! wp_next_scheduled( 'pw_daily_report' ) ) {
 			wp_schedule_event( time(), 'daily', 'pw_daily_report' );
 		}
+        // Auto-cleanup stats history
+		if ( ! wp_next_scheduled( 'pw_cleanup_stats_history' ) ) {
+			wp_schedule_event( time(), 'daily', 'pw_cleanup_stats_history' );
+		}
 	}
 }

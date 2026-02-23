@@ -73,7 +73,8 @@ class Plugin {
 			'process_queue_manual', 'save_isp', 'delete_isp',
 			'save_strategy', 'delete_strategy', 'render_preview',
 			'test_webhook', 'run_domscan_audit',
-			'export_settings', 'import_settings', 'reset_settings', 'purge_all_data'
+			'export_settings', 'import_settings', 'reset_settings', 'purge_all_data',
+            'create_chain_template', 'copy_template', 'duplicate_chain', 'stop_thread', 'send_thread_now', 'send_test_email'
 		];
 
 		foreach ( $ajax_actions as $action ) {
@@ -165,6 +166,11 @@ class Plugin {
 		if ( ! wp_next_scheduled( 'pw_daily_report' ) ) {
 			wp_schedule_event( time(), 'daily', 'pw_daily_report' );
 		}
+
+        $this->loader->add_action( 'pw_cleanup_stats_history', 'PostalWarmup\Models\Stats', 'cleanup_stats_history' );
+        if ( ! wp_next_scheduled( 'pw_cleanup_stats_history' ) ) {
+            wp_schedule_event( time(), 'daily', 'pw_cleanup_stats_history' );
+        }
 	}
 
 	public function check_upgrade() {

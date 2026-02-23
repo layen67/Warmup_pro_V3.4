@@ -134,11 +134,7 @@ class Admin {
 		
 		if ( strpos( $hook, 'postal-warmup-templates' ) !== false || $hook === 'toplevel_page_postal-warmup' ) {
 			wp_enqueue_script( 'pw-templates', PW_PLUGIN_URL . 'admin/assets/js/templates-manager-v3.1.js', [ 'jquery', 'pw-admin' ], $script_version, true );
-
-            // Phase 2 Step 6: Chains Tab Logic (inline or separate file?)
-            // We can add it to templates-manager-v3.1.js or create a new file.
-            // Let's assume logic goes into templates-manager or new script if complex.
-            // For now, enqueuing existing script is enough if we extend it.
+            wp_enqueue_script( 'pw-chains', PW_PLUGIN_URL . 'admin/assets/js/chains.js', [ 'jquery', 'pw-admin' ], $script_version, true );
 		}
 
 		if ( strpos( $hook, 'postal-warmup-strategies' ) !== false ) {
@@ -158,6 +154,7 @@ class Admin {
 				'error'          => __( 'Erreur !', 'postal-warmup' ),
 			],
             'threads_enabled' => get_option('pw_thread_enabled', false),
+            'thread_suffix'   => get_option('pw_thread_template_suffix', '_reply'),
 		]);
 	}
 

@@ -716,18 +716,13 @@ class Stats {
 		return $heatmap;
 	}
 
-    // --- ETAPE 7: Nouvelles Méthodes pour Threads ---
-
     /**
      * Stats des threads pour un serveur donné
      */
     public static function get_thread_stats( int $server_id ): array {
-        // Mock data logic until postal_stats_history stores threads explicitly
-        // We can infer thread activity by checking 'meta' for thread_depth > 0
         global $wpdb;
         $table_history = $wpdb->prefix . 'postal_stats_history';
 
-        // Count replies today
         $today_start = current_time('Y-m-d 00:00:00');
 
         $replies_today = $wpdb->get_var($wpdb->prepare(
@@ -735,7 +730,6 @@ class Stats {
             $server_id, $today_start, '%thread_depth%'
         ));
 
-        // Active threads (last 24h)
         $active_threads = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(DISTINCT meta) FROM $table_history WHERE server_id = %d AND timestamp >= %s AND meta LIKE %s",
             $server_id, date('Y-m-d H:i:s', strtotime('-24 hours')), '%thread_depth%'
@@ -744,7 +738,7 @@ class Stats {
         return [
             'replies_today' => (int)$replies_today,
             'active_threads' => (int)$active_threads,
-            'response_rate' => 0 // Needs deeper analysis of in_reply_to pairs
+            'response_rate' => 0
         ];
     }
 
@@ -755,7 +749,6 @@ class Stats {
         global $wpdb;
         $table_history = $wpdb->prefix . 'postal_stats_history';
 
-        // Fetch rows that are replies
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM $table_history WHERE meta LIKE %s ORDER BY timestamp DESC LIMIT %d",
             '%thread_depth%', $limit
@@ -774,5 +767,23 @@ class Stats {
         }
 
         return $threads;
+    }
+
+    /**
+     * Nettoyage automatique des données historiques
+     */
+    public static function cleanup_stats_history() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'postal_stats_history';
+        $days = (int) \PostalWarmup\Admin\Settings::get('stats_retention_days', 90);
+
+        $date = date('Y-m-d H:i:s', strtotime("-$days days"));
+
+        $wpdb->query($wpdb->prepare("DELETE FROM $table WHERE timestamp < %s", $date));
+
+        // Also optimize if enabled
+        if (\PostalWarmup\Admin\Settings::get('db_optimize_on_purge', true)) {
+            $wpdb->query("OPTIMIZE TABLE $table");
+        }
     }
 }

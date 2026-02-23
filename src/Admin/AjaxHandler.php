@@ -106,6 +106,44 @@ class AjaxHandler {
         wp_send_json_success(['message' => 'Envoyé']);
     }
 
+    public function ajax_send_test_email() {
+        check_ajax_referer( 'pw_admin_nonce', 'nonce' );
+        $this->check_permission();
+
+        $to = sanitize_email( $_POST['email'] );
+        $content = wp_unslash( $_POST['content'] );
+        $subject = sanitize_text_field( $_POST['subject'] );
+        $server_id = (int) $_POST['server_id'];
+
+        if ( !is_email($to) ) wp_send_json_error(['message' => 'Email invalide']);
+
+        $server = \PostalWarmup\Models\Database::get_server($server_id);
+        if (!$server) wp_send_json_error(['message' => 'Serveur invalide']);
+
+        // Send immediately (bypass queue for test)
+        $payload = [
+            'to' => [$to],
+            'from' => 'Test <test@' . $server['domain'] . '>',
+            'subject' => $subject,
+            'plain_body' => strip_tags($content),
+            'html_body' => $content
+        ];
+
+        // Using Sender's internal method via reflection or just call process_queue?
+        // process_queue expects queued item or constructs it.
+        // We can reuse Sender::send_request but it's private.
+        // Public method test_connection does it.
+        // Let's use Client::request directly as we are Admin testing.
+
+        $result = Client::request($server_id, 'send/message', 'POST', $payload);
+
+        if (is_wp_error($result)) {
+            wp_send_json_error(['message' => $result->get_error_message()]);
+        } else {
+            wp_send_json_success(['message' => 'Envoyé ! ID: ' . ($result['message_id'] ?? 'N/A')]);
+        }
+    }
+
     // ... (Existing methods below)
 
 	public function ajax_test_server() {

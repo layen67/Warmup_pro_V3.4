@@ -159,10 +159,16 @@ if (!$table_exists): ?>
                 Nouveau Template 
             </button> 
         </div> 
-    </div> 
+    </div>
+
+    <!-- Onglets -->
+    <h2 class="nav-tab-wrapper">
+        <a href="#list" class="nav-tab nav-tab-active pw-tab-link" data-tab="list">Liste</a>
+        <a href="#chains" class="nav-tab pw-tab-link" data-tab="chains">Chaînes (Threads)</a>
+    </h2>
      
-    <!-- Barre de recherche et filtres --> 
-    <div class="pw-toolbar"> 
+    <!-- Barre de recherche et filtres (Tab List only) -->
+    <div class="pw-toolbar pw-tab-content" id="pw-list-toolbar">
         <div class="pw-search-container"> 
             <span class="dashicons dashicons-search"></span> 
             <input  
@@ -199,7 +205,7 @@ if (!$table_exists): ?>
     </div> 
      
     <!-- Layout 3 colonnes --> 
-    <div class="pw-main-layout"> 
+    <div class="pw-main-layout pw-tab-content" id="pw-list-tab">
          
         <!-- Sidebar gauche (Dossiers + Tags) --> 
         <aside class="pw-sidebar"> 
@@ -565,7 +571,10 @@ if (!$table_exists): ?>
              
         </main> 
          
-    </div> 
+    </div>
+
+    <!-- Tab Chaînes -->
+    <?php include __DIR__ . '/templates-chains.php'; ?>
      
 </div> 
  
@@ -578,3 +587,22 @@ include __DIR__ . '/template-move-modal.php';
 include __DIR__ . '/template-duplicate-modal.php'; 
 include __DIR__ . '/template-category-modal.php'; 
 ?>
+
+<script>
+jQuery(document).ready(function($) {
+    $('.pw-tab-link').on('click', function(e) {
+        e.preventDefault();
+        $('.pw-tab-link').removeClass('nav-tab-active');
+        $(this).addClass('nav-tab-active');
+
+        $('.pw-tab-content').hide();
+        var tab = $(this).data('tab');
+        if (tab === 'list') {
+            $('#pw-list-tab').show();
+            $('#pw-list-toolbar').show();
+        } else if (tab === 'chains') {
+            $('#pw-chains-tab').show();
+        }
+    });
+});
+</script>
