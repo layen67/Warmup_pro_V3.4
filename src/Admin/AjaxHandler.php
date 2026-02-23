@@ -23,6 +23,91 @@ class AjaxHandler {
 		}
 	}
 
+    // --- ETAPE 8: Nouvelles Actions Threads ---
+
+    public function ajax_pw_create_chain_template() {
+        check_ajax_referer( 'pw_admin_nonce', 'nonce' );
+        $this->check_permission();
+
+        $name = sanitize_text_field( $_POST['name'] ?? '' );
+        if ( empty($name) ) wp_send_json_error( [ 'message' => 'Nom manquant' ] );
+
+        // Create empty template
+        $id = TemplateManager::save_template($name, [
+            'subject' => ['Re: Sujet'],
+            'text' => ['Réponse...'],
+            'html' => ['<p>Réponse...</p>'],
+            'from_name' => [],
+            'mailto_subject' => [],
+            'mailto_body' => [],
+            'mailto_from_name' => [],
+            'default_label' => ''
+        ], [
+            'folder_id' => TemplateManager::ensure_uncategorized_folder(),
+            'status' => 'active'
+        ]);
+
+        if ( is_wp_error($id) ) wp_send_json_error( [ 'message' => $id->get_error_message() ] );
+
+        wp_send_json_success( [ 'id' => $id, 'name' => $name, 'message' => 'Template créé' ] );
+    }
+
+    public function ajax_pw_copy_template() {
+        check_ajax_referer( 'pw_admin_nonce', 'nonce' );
+        $this->check_permission();
+
+        $source_id = (int) $_POST['source_id'];
+        $target_id = (int) $_POST['target_id'];
+
+        // Get source data
+        global $wpdb;
+        $table = $wpdb->prefix . 'postal_templates';
+        $source = $wpdb->get_row( $wpdb->prepare("SELECT data FROM $table WHERE id = %d", $source_id), ARRAY_A );
+
+        if ( !$source ) wp_send_json_error(['message' => 'Source introuvable']);
+
+        $wpdb->update($table, ['data' => $source['data']], ['id' => $target_id]);
+
+        wp_send_json_success(['message' => 'Contenu copié']);
+    }
+
+    public function ajax_pw_duplicate_chain() {
+        check_ajax_referer( 'pw_admin_nonce', 'nonce' );
+        $this->check_permission();
+        // Not implemented fully yet as complex logic required to clone multiple templates.
+        wp_send_json_error(['message' => 'Non implémenté']);
+    }
+
+    public function ajax_pw_stop_thread() {
+        check_ajax_referer( 'pw_admin_nonce', 'nonce' );
+        $this->check_permission();
+
+        $thread_id = sanitize_text_field($_POST['thread_id']);
+        // Logic to stop thread (e.g. add to suppression or update meta)
+        // For now, we don't have a "stop list" for threads specifically.
+        // We could use a transient "pw_thread_stop_THREADID".
+        set_transient('pw_thread_stop_' . $thread_id, true, 7 * DAY_IN_SECONDS);
+
+        wp_send_json_success(['message' => 'Thread arrêté']);
+    }
+
+    public function ajax_pw_send_thread_now() {
+        check_ajax_referer( 'pw_admin_nonce', 'nonce' );
+        $this->check_permission();
+
+        $queue_id = (int) $_POST['queue_id'];
+        global $wpdb;
+        $table = $wpdb->prefix . 'postal_queue';
+        $wpdb->update($table, ['scheduled_at' => current_time('mysql')], ['id' => $queue_id]);
+
+        // Trigger queue process immediately?
+        \PostalWarmup\Services\QueueManager::process_queue();
+
+        wp_send_json_success(['message' => 'Envoyé']);
+    }
+
+    // ... (Existing methods below)
+
 	public function ajax_test_server() {
 		check_ajax_referer( 'pw_admin_nonce', 'nonce' );
 		$this->check_permission();
@@ -60,12 +145,14 @@ class AjaxHandler {
 		$summary = Stats::get_dashboard_stats();
 		$chart = Stats::get_global_stats( $days );
 		$errors = Stats::get_recent_errors( 5 );
+        $threads = Stats::get_recent_threads( 5 ); // New
 		
 		wp_send_json_success( [ 
 			'logs' => $logs, 
 			'summary' => $summary, 
 			'chart' => $chart,
-			'errors' => $errors
+			'errors' => $errors,
+            'threads' => $threads // New
 		] );
 	}
 

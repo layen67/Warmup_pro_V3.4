@@ -119,7 +119,6 @@ class Admin {
 		$is_dev = defined('WP_DEBUG') && WP_DEBUG === true;
 		$script_version = $is_dev ? time() : WARMUP_PRO_VERSION;
 
-		// Utilisation locale de Chart.js si possible (Voir Roadmap Phase 1)
 		if ( file_exists( PW_PLUGIN_DIR . 'admin/assets/js/chart.umd.min.js' ) ) {
 			wp_enqueue_script( 'pw-chartjs', PW_PLUGIN_URL . 'admin/assets/js/chart.umd.min.js', [], '4.4.0', true );
 		} else {
@@ -135,6 +134,11 @@ class Admin {
 		
 		if ( strpos( $hook, 'postal-warmup-templates' ) !== false || $hook === 'toplevel_page_postal-warmup' ) {
 			wp_enqueue_script( 'pw-templates', PW_PLUGIN_URL . 'admin/assets/js/templates-manager-v3.1.js', [ 'jquery', 'pw-admin' ], $script_version, true );
+
+            // Phase 2 Step 6: Chains Tab Logic (inline or separate file?)
+            // We can add it to templates-manager-v3.1.js or create a new file.
+            // Let's assume logic goes into templates-manager or new script if complex.
+            // For now, enqueuing existing script is enough if we extend it.
 		}
 
 		if ( strpos( $hook, 'postal-warmup-strategies' ) !== false ) {
@@ -152,7 +156,8 @@ class Admin {
 				'testing'        => __( 'Test en cours...', 'postal-warmup' ),
 				'success'        => __( 'Succès !', 'postal-warmup' ),
 				'error'          => __( 'Erreur !', 'postal-warmup' ),
-			]
+			],
+            'threads_enabled' => get_option('pw_thread_enabled', false),
 		]);
 	}
 

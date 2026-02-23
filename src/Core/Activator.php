@@ -21,10 +21,6 @@ class Activator {
 	}
 
 	private static function cleanup_debug_files() {
-		// Only run if enabled (default true)
-		// Since Settings might not be init yet on first activation, we trust defaults.
-		// However, Settings::get handles fallback.
-		
 		if ( Settings::get( 'auto_cleanup_debug_files', true ) ) {
 			$sensitive = [
 				PW_PLUGIN_DIR . 'debug.log',
@@ -381,6 +377,15 @@ class Activator {
 		add_option( 'pw_log_retention_days', 30 );
 		add_option( 'pw_stats_enabled', true );
 		add_option( 'pw_max_retries', 3 );
+
+        // --- PHASE 2 / ETAPE 3 : Nouvelles options Threads ---
+        add_option( 'pw_thread_enabled', false );
+        add_option( 'pw_thread_max_exchanges', 3 );
+        add_option( 'pw_thread_delay_min', 300 ); // 5 minutes
+        add_option( 'pw_thread_delay_max', 1800 ); // 30 minutes
+        add_option( 'pw_thread_template_suffix', '_reply' );
+        add_option( 'pw_thread_tag_prefix', 'warmup-reply' );
+        add_option( 'pw_thread_fallback_template_id', 0 );
 		
 		self::install_default_isps();
 	}
