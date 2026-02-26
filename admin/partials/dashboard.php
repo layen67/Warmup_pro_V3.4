@@ -212,6 +212,44 @@ $refresh_rate = (int) Settings::get( 'dashboard_refresh', 30 );
             </div>
         </div>
 
+        <!-- Thread Stats Widget (New) -->
+        <?php
+        $threads_enabled = get_option('pw_thread_enabled', false);
+        if ($threads_enabled):
+            $recent_threads = PW_Stats::get_recent_threads(5);
+        ?>
+        <div class="pw-card">
+            <div class="pw-card-header">
+                <h3><?php _e('Threads de Discussion', 'postal-warmup'); ?></h3>
+                <span class="pw-badge pw-badge-success" style="margin-left:auto;">Actif</span>
+            </div>
+            <div class="pw-card-body" style="padding: 0;">
+                <?php if (empty($recent_threads)): ?>
+                    <div style="padding: 20px; text-align: center; color: var(--pw-text-muted);">
+                        <?php _e('Aucun thread actif.', 'postal-warmup'); ?>
+                    </div>
+                <?php else: ?>
+                    <ul class="pw-activity-list">
+                    <?php foreach ($recent_threads as $th): ?>
+                        <li class="pw-activity-item">
+                            <div class="pw-activity-header">
+                                <span class="pw-badge info">Échange <?php echo $th['exchange']; ?></span>
+                                <span class="pw-activity-time"><?php echo human_time_diff(strtotime($th['time']), current_time('timestamp')); ?></span>
+                            </div>
+                            <div class="pw-activity-msg">
+                                <?php echo esc_html($th['template']); ?>
+                                <span style="display:block; font-size:12px; color:#666;">
+                                    Vers: <?php echo esc_html($th['email']); ?>
+                                </span>
+                            </div>
+                        </li>
+                    <?php endforeach; ?>
+                    </ul>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Recent Activity / Errors -->
         <div class="pw-card">
             <div class="pw-card-header">

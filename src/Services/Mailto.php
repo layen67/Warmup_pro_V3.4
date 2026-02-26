@@ -421,23 +421,23 @@ class Mailto {
 			);
 		}
 		
-		// Tooltip Logic (Only for admins or debug mode?)
-		// Allowing public visibility might leak server stats. 
-		// The prompt asks to add it. Let's add it as 'title' attribute for now.
-		$tooltip = sprintf(
-			"Server: %s | Usage: %d/%s | ISP: %s",
-			$server['domain'],
-			$usage,
-			$limit > 0 ? $limit : '∞',
-			'Auto'
-		);
+		// Tooltip Logic removed for privacy
+		// Was: Server: %s | Usage: %d/%s | ISP: %s
+		$tooltip = "";
+		// Only show for admins if needed, but user asked to remove "info alt".
+		// Keeping standard title behavior (empty or descriptive like "Contact Us" if wanted, but label is "Contact Us").
+		// So we can set title to empty or remove attribute.
+		// If we remove $tooltip variable usage in sprintf, it's safer.
+
+		// If debugging is active, maybe show it? User said "sur le site... pas bien a la vue des utilisateur".
+		// So clean it up completely.
 
 		return sprintf(
-			'<a href="%s" class="%s" style="%s" title="%s" %s>%s</a>',
+			'<a href="%s" class="%s" style="%s" %s>%s</a>',
 			esc_url( $mailto_url ),
 			$classes,
 			esc_attr( $final_style ),
-			esc_attr( $tooltip ),
+			// esc_attr( $tooltip ), // Removed tooltip
 			$data_attrs,
 			$label
 		);

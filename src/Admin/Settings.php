@@ -9,7 +9,7 @@ class Settings {
 	// Default Settings Configuration
 	private $defaults = [
 		// General
-		'sending_enabled' => true, // Global Sending Toggle
+		'sending_enabled' => true,
 		'global_tag' => 'warmup',
 		'disable_ip_logging' => false,
 		'enable_logging' => true,
@@ -19,6 +19,15 @@ class Settings {
 		'daily_limit_global' => 0,
 		'hourly_limit_global' => 0,
 		
+		// Threads (NEW Phase 2)
+		'thread_enabled' => false,
+		'thread_max_exchanges' => 3,
+		'thread_delay_min' => 300,
+		'thread_delay_max' => 1800,
+		'thread_template_suffix' => '_reply',
+		'thread_tag_prefix' => 'warmup-reply',
+		'thread_fallback_template_id' => 0,
+
 		// Security
 		'webhook_strict_mode' => true,
 		'webhook_secret' => '',
@@ -26,12 +35,12 @@ class Settings {
 		'webhook_rate_limit_minute' => 100,
 		'webhook_rate_limit_hour' => 2000,
 		'webhook_ip_whitelist' => '',
-		'webhook_invalid_signature_action' => 'log', // reject, log, notify
+		'webhook_invalid_signature_action' => 'log',
 		'nonce_expiration' => 12,
 		'required_capability' => 'manage_options',
 		'mask_api_keys_logs' => true,
 		'mask_api_keys_ui' => true,
-		'log_sensitive_data' => 'masked', // full, masked, none
+		'log_sensitive_data' => 'masked',
 		'auto_cleanup_debug_files' => true,
 		
 		// Queue
@@ -41,45 +50,45 @@ class Settings {
 		'queue_locking_enabled' => true,
 		'queue_lock_timeout' => 60,
 		'max_retries' => 3,
-		'retry_strategy' => 'fixed', // fixed, exponential, linear
+		'retry_strategy' => 'fixed',
 		'retry_delay_base' => 60,
 		'retry_delay_max' => 900,
 		'cron_method' => 'wp_cron',
 		'schedule_random_delay_min' => 2,
 		'schedule_random_delay_max' => 10,
 		'human_jitter_enabled' => false,
-		'weekend_mode' => 'off', // off, reduced, full
+		'weekend_mode' => 'off',
 		'lunch_break_enabled' => false,
-		'queue_pause_threshold' => 50, // % failure rate
-		'queue_resume_delay' => 30, // minutes
+		'queue_pause_threshold' => 50,
+		'queue_resume_delay' => 30,
 		
 		// Warmup
-		'warmup_strategy_mode' => 'smart', // linear, smart
-		'warmup_mode' => 'linear', // Legacy? Kept for compatibility or remove? Let's keep for now.
+		'warmup_strategy_mode' => 'smart',
+		'warmup_mode' => 'linear',
 		'warmup_start' => 10,
 		'warmup_max' => 1000,
 		'warmup_days' => 30,
 		'warmup_increase_percent' => 20,
-		'warmup_advance_threshold' => 80, // % du quota pour avancer
-		'warmup_retreat_threshold' => 3, // % d'erreur pour reculer
-		'warmup_min_volume' => 10, // Emails minimum pour décider
+		'warmup_advance_threshold' => 80,
+		'warmup_retreat_threshold' => 3,
+		'warmup_min_volume' => 10,
 		'pause_bounce_rate' => 5,
 		'pause_spam_rate' => 1,
 		'pause_failure_rate' => 10,
 		'default_from_name' => '',
 		'default_from_email' => '',
 		'custom_headers' => '',
-		'bounce_handling_action' => 'mark_failed', // remove, mark_failed, notify
+		'bounce_handling_action' => 'mark_failed',
 		
 		// Performance
 		'enable_transient_cache' => true,
-		'cache_backend' => 'auto', // auto, transient, redis
+		'cache_backend' => 'auto',
 		'cache_ttl_server' => 300,
 		'cache_ttl_stats' => 600,
 		'cache_ttl_api' => 300,
 		'auto_purge_queue_days' => 90,
 		'auto_purge_logs_days' => 30,
-		'db_purge_schedule' => 'daily', // daily, weekly
+		'db_purge_schedule' => 'daily',
 		'db_optimize_on_purge' => true,
 		'log_max_file_size' => 10,
 		'log_auto_purge_deactivation' => false,
@@ -98,11 +107,11 @@ class Settings {
 		'ui_color_success' => '#00a32a',
 		'ui_color_warning' => '#dba617',
 		'ui_color_danger' => '#d63638',
-		'ui_dark_mode' => 'auto', // auto, always, never
-		'table_density' => 'normal', // compact, normal, comfortable
-		'toast_notifications' => 'top-right', // disabled or position
+		'ui_dark_mode' => 'auto',
+		'table_density' => 'normal',
+		'toast_notifications' => 'top-right',
 		'enable_animations' => true,
-		'dashboard_widgets' => ['sent', 'success_rate', 'volume', 'active_servers'], // Default visible
+		'dashboard_widgets' => ['sent', 'success_rate', 'volume', 'active_servers'],
 		
 		// Notifications
 		'notify_email' => '',
@@ -110,8 +119,8 @@ class Settings {
 		'notify_daily_report' => false,
 		'notify_stuck_queue' => true,
 		'notify_api_error' => true,
-		'notify_stuck_queue_threshold' => 60, // minutes
-		'notify_failure_rate_threshold' => 50, // %
+		'notify_stuck_queue_threshold' => 60,
+		'notify_failure_rate_threshold' => 50,
 		
 		// Advanced
 		'log_mode' => 'file',
@@ -121,26 +130,22 @@ class Settings {
 	];
 
 	public function register_settings() {
-		// Register the single array option
 		register_setting( 
 			'postal-warmup-settings', 
 			$this->option_name, 
 			[ 'sanitize_callback' => [ $this, 'sanitize_settings' ] ] 
 		);
 
-		// Migration: If pw_settings is empty, try to fill from old options
 		if ( false === get_option( $this->option_name ) ) {
 			$this->migrate_old_options();
 		}
 
-		// Register Sections & Fields based on active Tab
 		$this->register_all_sections();
 	}
 
 	private function migrate_old_options() {
 		$new = $this->defaults;
 		
-		// Map old keys to new keys
 		$map = [
 			'pw_global_tag' => 'global_tag',
 			'pw_enable_logging' => 'enable_logging',
@@ -156,6 +161,15 @@ class Settings {
 			'pw_notify_on_error' => 'notify_on_error',
 			'pw_daily_report' => 'notify_daily_report',
 			'pw_log_mode' => 'log_mode',
+
+            // New options from standalone options (migrated during Activator, but good to check here too)
+            'pw_thread_enabled' => 'thread_enabled',
+            'pw_thread_max_exchanges' => 'thread_max_exchanges',
+            'pw_thread_delay_min' => 'thread_delay_min',
+            'pw_thread_delay_max' => 'thread_delay_max',
+            'pw_thread_template_suffix' => 'thread_template_suffix',
+            'pw_thread_tag_prefix' => 'thread_tag_prefix',
+            'pw_thread_fallback_template_id' => 'thread_fallback_template_id',
 		];
 
 		foreach ( $map as $old => $new_key ) {
@@ -172,37 +186,6 @@ class Settings {
 		$output = get_option( $this->option_name, $this->defaults );
 		if ( ! is_array( $output ) ) $output = $this->defaults;
 
-		// We assume all boolean fields from the active tab MUST be present in $input if they are checked.
-		// If they are missing, it means they were unchecked (for that tab).
-		// Problem: We don't know which tab was submitted just from $input.
-		// Solution: Check if at least one field from a tab is present, then assume that tab was submitted.
-		// Or better: Use a hidden field 'pw_settings_tab' in the form.
-		// But register_setting callback only gets the values.
-		
-		// Alternative: Iterate over defaults. If default is boolean AND we can infer we are saving settings (always true here),
-		// we check if the key is missing. BUT we must be careful about partial updates.
-		// WP Settings API sends the whole array for the option group usually? No, only fields on page.
-		// Wait, 'pw_settings' is a single array option.
-		// The form sends `pw_settings[key]`.
-		// If I'm on Tab A, `pw_settings[field_B]` is NOT sent.
-		// So `isset($input['field_B'])` is false. If I set it to false, I overwrite Tab B settings.
-		// CRITICAL FIX: We need to know which fields were present on the screen.
-		// Workaround: We will rely on type checking.
-		// If a key is present, we update it.
-		// For checkboxes, we need a hidden field for each checkbox or a hidden list of fields.
-		// Standard WP way: Hidden input with same name before checkbox? No, array keys overwrite.
-		// Let's implement the "hidden field with list of keys" approach in render logic, OR simpler:
-		// Since we are rebuilding $output from existing options, we only update keys that are in $input?
-		// NO, that's exactly the bug: unchecked checkboxes are NOT in $input.
-		
-		// Fix: In our form (partials/settings.php), we are using do_settings_sections.
-		// We can add a hidden field `pw_settings[_submitted]` with a dummy value to verify submission? No.
-		
-		// Let's look at `admin/partials/settings.php`. We can add a hidden field there?
-		// Actually, standard practice for array options with checkboxes is tricky.
-		// We will modify `render_field` to include a hidden input for checkboxes with value '0'.
-		// This way, if unchecked, '0' is sent. If checked, '1' overwrites '0'.
-		
 		foreach ( $this->defaults as $key => $default ) {
 			if ( isset( $input[$key] ) ) {
 				$type = gettype( $default );
@@ -226,6 +209,14 @@ class Settings {
 			}
 		}
 		
+        // Validation Logic for Threads
+        if ( isset($output['thread_delay_min']) && isset($output['thread_delay_max']) ) {
+            if ( $output['thread_delay_min'] >= $output['thread_delay_max'] ) {
+                $output['thread_delay_min'] = $output['thread_delay_max'] - 60;
+                add_settings_error( 'postal-warmup-settings', 'thread_delay_error', 'Erreur : Le délai minimum doit être inférieur au maximum.', 'error' );
+            }
+        }
+
 		return $output;
 	}
 
@@ -233,7 +224,6 @@ class Settings {
 		$tabs = $this->get_tabs_config();
 		
 		foreach ( $tabs as $tab_id => $tab ) {
-			// Use a unique page slug for each tab
 			$page_slug = 'postal-warmup-settings-' . $tab_id;
 			
 			add_settings_section(
@@ -255,7 +245,7 @@ class Settings {
 						'type' => $field['type'], 
 						'options' => $field['options'] ?? [], 
 						'desc' => $field['desc'] ?? '',
-						'label_for' => 'pw_settings[' . $field_id . ']' // Accessibility
+						'label_for' => 'pw_settings[' . $field_id . ']'
 					]
 				);
 			}
@@ -276,6 +266,26 @@ class Settings {
 					'disable_ip_logging' => [ 'label' => __( 'Désactiver IP Log', 'postal-warmup' ), 'type' => 'checkbox', 'desc' => __( 'Conformité RGPD', 'postal-warmup' ) ],
 				]
 			],
+            'threads' => [
+                'label' => __( 'Threads', 'postal-warmup' ),
+                'fields' => [
+                    'thread_enabled' => [
+                        'label' => __( 'Activer les Threads', 'postal-warmup' ),
+                        'type' => 'checkbox',
+                        'desc' => __( 'Répond automatiquement quand un destinataire répond à votre email de warmup. Génère de vrais threads qui renforcent la réputation.', 'postal-warmup' )
+                    ],
+                    'thread_max_exchanges' => [ 'label' => __( 'Max Échanges', 'postal-warmup' ), 'type' => 'number', 'desc' => __( 'Nombre maximum de réponses par conversation (Min 1, Max 10).', 'postal-warmup' ) ],
+                    'thread_delay_min' => [ 'label' => __( 'Délai Min (sec)', 'postal-warmup' ), 'type' => 'number', 'desc' => __( 'Temps de réponse minimum.', 'postal-warmup' ) ],
+                    'thread_delay_max' => [ 'label' => __( 'Délai Max (sec)', 'postal-warmup' ), 'type' => 'number', 'desc' => __( 'Temps de réponse maximum.', 'postal-warmup' ) ],
+                    'thread_template_suffix' => [ 'label' => __( 'Suffixe Templates', 'postal-warmup' ), 'type' => 'text', 'desc' => __( 'Suffixe pour trouver les templates de réponse (ex: _reply donne support_reply2).', 'postal-warmup' ) ],
+                    'thread_fallback_template_id' => [
+                        'label' => __( 'Template de Repli', 'postal-warmup' ),
+                        'type' => 'select_template', // Custom type needed or use callback
+                        'desc' => __( 'Utilisé si le template suivant de la chaîne n\'existe pas.', 'postal-warmup' )
+                    ],
+                    'thread_tag_prefix' => [ 'label' => __( 'Préfixe Tag Postal', 'postal-warmup' ), 'type' => 'text', 'desc' => __( 'Tag visible dans Postal (ex: warmup-reply-2).', 'postal-warmup' ) ],
+                ]
+            ],
 			'security' => [
 				'label' => __( 'Sécurité', 'postal-warmup' ),
 				'fields' => [
@@ -476,7 +486,6 @@ class Settings {
 				echo '<textarea name="' . $name . '" rows="5" cols="50" class="large-text code">' . esc_textarea( $value ) . '</textarea>';
 				break;
 			case 'checkbox':
-				// Add hidden field to ensure unchecked value is sent (overwritten by checkbox if checked)
 				echo '<input type="hidden" name="' . $name . '" value="0">';
 				echo '<input type="checkbox" name="' . $name . '" value="1" ' . checked( $value, true, false ) . '>';
 				break;
@@ -497,11 +506,9 @@ class Settings {
 				}
 				break;
 			case 'copyable':
-				// Computed value, ignoring $value from DB
+				// ... (same as before)
 				if ( $id === 'webhook_url' ) {
 					$url = get_rest_url( null, 'postal-warmup/v1/webhook' );
-					
-					// Append token for security (Strict Mode)
 					$secret = get_option( 'pw_webhook_secret' );
 					if ( empty( $secret ) ) {
 						$secret = wp_generate_password( 64, false );
@@ -517,6 +524,17 @@ class Settings {
 					echo '</div>';
 				}
 				break;
+            case 'select_template':
+                echo '<select name="' . $name . '">';
+                echo '<option value="0">' . __( 'Ne pas répondre', 'postal-warmup' ) . '</option>';
+                $templates = TemplateManager::get_all_with_meta(); // Need to check if available here
+                if ($templates) {
+                    foreach ( $templates as $tpl ) {
+                        echo '<option value="' . esc_attr( $tpl['id'] ) . '" ' . selected( $value, $tpl['id'], false ) . '>' . esc_html( $tpl['name'] ) . '</option>';
+                    }
+                }
+                echo '</select>';
+                break;
 		}
 		
 		if ( ! empty( $args['desc'] ) ) {
@@ -531,7 +549,7 @@ class Settings {
 			return $options[$key];
 		}
 		
-		// Fallbacks for critical values if DB is empty/corrupt
+		// Fallbacks
 		$defaults = [
 			'queue_batch_size' => 20,
 			'db_query_limit' => 500,

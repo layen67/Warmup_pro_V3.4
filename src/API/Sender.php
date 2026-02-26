@@ -145,7 +145,7 @@ class Sender {
 
 		if ( $result['success'] ) {
 			// New Stats Logic: Insert into History
-			$message_id = $result['response']['data']['message_id'] ?? null;
+			$message_id = $result['response']['message_id'] ?? ($result['response']['data']['message_id'] ?? null);
 			Database::insert_stat_history( [
 				'server_id'   => $server['id'],
 				'template_id' => $prepared['id'], // Can be null if file/system
@@ -209,65 +209,33 @@ class Sender {
 
 
 	private static function send_request( $server, $payload, $attempt, $template_name = null ) {
-		$api_url = rtrim( $server['api_url'], '/' );
-		$api_key = $server['api_key']; // Already decrypted by Database model
-		$url = $api_url . '/send/message';
-		
+		// Use unified Client
 		$start_time = microtime( true );
 		
-		$response = wp_remote_post( $url, [
-			'headers' => [
-				'Content-Type'     => 'application/json',
-				'X-Server-API-Key' => $api_key
-			],
-			'body'      => json_encode( $payload ),
-			'timeout'   => (int) Settings::get( 'api_timeout', 15 ),
-			'sslverify' => true
-		]);
+		// Client::request handles headers (except 'Content-Type' which it adds),
+		// URL construction, API Key, and JSON body encoding if array passed.
 		
+		// Map payload to Client params
+		// Client::request($server_id, $endpoint, $method, $data)
+		
+		$result = Client::request( $server['id'], 'send/message', 'POST', $payload );
 		$response_time = microtime( true ) - $start_time;
-		
-		if ( is_wp_error( $response ) ) {
+
+		if ( is_wp_error( $result ) ) {
 			Logger::error( "Erreur HTTP (tentative $attempt)", [
 				'server_id'     => $server['id'],
-				'error'         => $response->get_error_message(),
+				'error'         => $result->get_error_message(),
 				'response_time' => round( $response_time, 3 )
 			]);
-			return [ 'success' => false, 'error' => $response->get_error_message(), 'response_time' => $response_time ];
+			return [ 'success' => false, 'error' => $result->get_error_message(), 'response_time' => $response_time ];
 		}
 		
-		$http_code = wp_remote_retrieve_response_code( $response );
-		$body = wp_remote_retrieve_body( $response );
+		// Client::request returns data array on success or full response if error?
+		// Let's check Client.php.
+		// "if ( isset( $result['status'] ) && $result['status'] === 'success' ) { return $result['data'] ?? []; }"
+		// So $result IS 'data' array (containing message_id, messages, etc).
 		
-		Logger::debug( "Réponse Postal", [
-			'server_id'     => $server['id'],
-			'http_code'     => $http_code,
-			'response_time' => round( $response_time, 3 )
-		]);
-		
-		if ( $http_code !== 200 ) {
-			$error_msg = "HTTP $http_code";
-			$json = json_decode( $body, true );
-			if ( $json && isset( $json['data']['message'] ) ) {
-				$error_msg .= ' - ' . $json['data']['message'];
-			} elseif ( $json && isset( $json['message'] ) ) {
-				$error_msg .= ' - ' . $json['message'];
-			}
-			
-			Logger::error( "Erreur API Postal ($http_code)", [
-				'server_id' => $server['id'],
-				'response'  => $body
-			]);
-
-			return [ 'success' => false, 'error' => $error_msg, 'response_time' => $response_time ];
-		}
-		
-		$data = json_decode( $body, true );
-		if ( ! $data || ( isset( $data['status'] ) && $data['status'] !== 'success' ) ) {
-			return [ 'success' => false, 'error' => $data['message'] ?? 'Réponse API invalide', 'response_time' => $response_time ];
-		}
-		
-		$message_id = $data['data']['message_id'] ?? null;
+		$message_id = $result['message_id'] ?? null;
 
 		Logger::info( "Email envoyé avec succès", [
 			'server_id'     => $server['id'],
@@ -278,16 +246,7 @@ class Sender {
 			'template'      => $template_name
 		]);
 		
-		// Optimization: Pre-fill postal_stats to ensure real-time accuracy even before Webhook
-		if ( $message_id ) {
-			// This part is handled by Logger::log -> Database::insert_log if configured for DB
-			// But for strict stats accuracy, we ensure 'sent' metric is recorded immediately
-			// Already done by Database::increment_sent and record_stat in process_queue, 
-			// but we can add message_id tracking if we had a detailed message table.
-			// Current structure relies on aggregated stats.
-		}
-		
-		return [ 'success' => true, 'response' => $data, 'response_time' => $response_time ];
+		return [ 'success' => true, 'response' => ['data' => $result], 'response_time' => $response_time ];
 	}
 
 	public static function test_connection( $server_id ) {
